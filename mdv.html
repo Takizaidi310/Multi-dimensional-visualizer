@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multidimensional Visualization // Taki Zaidi</title>
+    <style>
+        /* --- EXPERT CSS: TYPOGRAPHY & LAYOUT --- */
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --primary: #00f3ff;
+            --secondary: #bc13fe;
+            --bg-glass: rgba(10, 15, 30, 0.65);
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --text-main: #e0e0e0;
+            --font-ui: 'Rajdhani', sans-serif;
+            --font-mono: 'Share Tech Mono', monospace;
+        }
+
+        * { box-sizing: border-box; user-select: none; }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: var(--text-main);
+            font-family: var(--font-ui);
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 1;
+        }
+
+        /* --- UI OVERLAY --- */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass to canvas */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 2rem;
+            transition: opacity 0.5s ease;
+        }
+
+        .ui-panel {
+            pointer-events: auto;
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            padding: 1.5rem;
+            border-radius: 4px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .ui-panel:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 40px 0 rgba(0, 243, 255, 0.1);
+        }
+
+        /* --- HEADER --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-size: 1.5rem;
+            background: linear-gradient(90deg, var(--primary), #fff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            padding: 2px 8px;
+            border-radius: 2px;
+            text-transform: uppercase;
+        }
+
+        /* --- CONTROLS --- */
+        .controls {
+            align-self: flex-start;
+            margin-top: auto;
+            min-width: 300px;
+        }
+
+        .control-group { margin-bottom: 1.2rem; }
+        
+        label {
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px; width: 14px;
+            background: var(--primary);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px var(--primary);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 2px;
+            background: #333;
+        }
+
+        /* Dimension Buttons */
+        .dim-selector {
+            display: flex;
+            gap: 5px;
+        }
+        .dim-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid transparent;
+            color: #fff;
+            padding: 8px 16px;
+            font-family: var(--font-mono);
+            cursor: pointer;
+            flex: 1;
+            transition: all 0.2s;
+        }
+        .dim-btn.active {
+            background: rgba(0, 243, 255, 0.15);
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+        }
+
+        /* --- FOOTER / CREDIT --- */
+        .footer-credit {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            text-align: right;
+            pointer-events: auto;
+        }
+        .credit-text {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+        .credit-name {
+            font-weight: bold;
+            color: var(--secondary);
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        /* --- BUTTONS --- */
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--text-main);
+            color: var(--text-main);
+            padding: 10px 20px;
+            font-family: var(--font-ui);
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+            width: 100%;
+            font-weight: bold;
+        }
+        .action-btn:hover {
+            background: var(--text-main);
+            color: #000;
+        }
+
+        /* Hide UI hint */
+        .hide-hint {
+            position: absolute;
+            bottom: 10px; left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            opacity: 0.4;
+        }
+
+        /* Loading */
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+            font-family: var(--font-mono);
+            color: var(--primary);
+            transition: opacity 1s;
+        }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="loader">INITIALIZING HYPER-GEOMETRY ENGINE...</div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <header class="ui-panel">
+            <div>
+                <h1>HyperSpace</h1>
+                <div style="font-size: 0.8rem; color: #888;">N-DIMENSIONAL TOPOLOGY SIMULATOR</div>
+            </div>
+            <div class="status-badge" id="fps-counter">60 FPS</div>
+        </header>
+
+        <div class="controls ui-panel">
+            <div class="control-group">
+                <label>Dimensionality</label>
+                <div class="dim-selector">
+                    <button class="dim-btn" onclick="app.setDimension(3)">3D</button>
+                    <button class="dim-btn active" onclick="app.setDimension(4)">4D</button>
+                    <button class="dim-btn" onclick="app.setDimension(5)">5D</button>
+                    <button class="dim-btn" onclick="app.setDimension(6)">6D</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Hyper-Rotation (W-Axis)</label>
+                <input type="range" min="0" max="0.05" step="0.001" value="0.01" id="speed-slider">
+            </div>
+
+            <div class="control-group">
+                <label>Perspective Depth</label>
+                <input type="range" min="1.5" max="5" step="0.1" value="2.5" id="perspective-slider">
+            </div>
+
+            <div class="control-group">
+                <label>Visual Mode</label>
+                <div class="dim-selector">
+                    <button class="dim-btn active" id="mode-wire">WIRE</button>
+                    <button class="dim-btn" id="mode-solid">SOLID</button>
+                </div>
+            </div>
+
+            <button class="action-btn" id="export-btn">Capture Analysis</button>
+        </div>
+
+        <div class="footer-credit">
+            <div class="credit-text">ENGINEERED BY</div>
+            <div class="credit-name">TAKI ZAIDI</div>
+        </div>
+
+        <div class="hide-hint">PRESS 'H' TO TOGGLE HUD</div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+
+        /**
+         * MATH UTILS: N-Dimensional Geometry
+         */
+        class HyperMath {
+            // Generate vertices for an n-dimensional hypercube centered at origin
+            static generateHypercubeVertices(dimensions) {
+                const numVertices = Math.pow(2, dimensions);
+                const vertices = [];
+                for (let i = 0; i < numVertices; i++) {
+                    const point = [];
+                    for (let j = 0; j < dimensions; j++) {
+                        // Use bit manipulation to determine +1 or -1
+                        const val = (i >> j) & 1 ? 1 : -1;
+                        point.push(val);
+                    }
+                    vertices.push(point);
+                }
+                return vertices;
+            }
+
+            // Generate edges (pairs of vertex indices)
+            static generateHypercubeEdges(dimensions) {
+                const numVertices = Math.pow(2, dimensions);
+                const edges = [];
+                for (let i = 0; i < numVertices; i++) {
+                    for (let j = 0; j < dimensions; j++) {
+                        // Toggle one bit to find the neighbor
+                        const neighbor = i ^ (1 << j);
+                        if (i < neighbor) { // Avoid duplicates
+                            edges.push([i, neighbor]);
+                        }
+                    }
+                }
+                return edges;
+            }
+
+            // Project point from N dimensions down to 3 dimensions
+            // Recursive perspective projection
+            static project(point, perspectiveDistance) {
+                let currentPoint = [...point];
+                
+                // While dimensionality > 3, project down one level
+                while (currentPoint.length > 3) {
+                    const w = currentPoint.pop(); // The highest dimension value
+                    const scale = 1 / (perspectiveDistance - w);
+                    
+                    // Scale remaining coordinates
+                    for (let i = 0; i < currentPoint.length; i++) {
+                        currentPoint[i] *= scale;
+                    }
+                }
+                
+                // Return 3D Vector
+                return new THREE.Vector3(currentPoint[0], currentPoint[1], currentPoint[2]);
+            }
+
+            // Rotate a point in N-space along a specific plane (axis1, axis2)
+            static rotate(point, theta, axis1, axis2) {
+                const dim = point.length;
+                if (axis1 >= dim || axis2 >= dim) return;
+
+                const c = Math.cos(theta);
+                const s = Math.sin(theta);
+                
+                const val1 = point[axis1];
+                const val2 = point[axis2];
+
+                point[axis1] = val1 * c - val2 * s;
+                point[axis2] = val1 * s + val2 * c;
+            }
+        }
+
+        /**
+         * CORE APPLICATION
+         */
+        class HyperApp {
+            constructor() {
+                this.dimension = 4;
+                this.perspective = 2.5;
+                this.rotationSpeed = 0.01;
+                this.time = 0;
+                this.mode = 'wire'; // wire or solid
+
+                this.container = document.getElementById('canvas-container');
+                this.initScene();
+                this.initPostProcessing();
+                this.initGeometry();
+                this.bindEvents();
+                
+                // Remove loader
+                setTimeout(() => {
+                    document.getElementById('loader').style.opacity = 0;
+                    setTimeout(() => document.getElementById('loader').remove(), 1000);
+                }, 800);
+
+                this.animate();
+            }
+
+            initScene() {
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.FogExp2(0x050505, 0.05);
+
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+                this.camera.position.set(0, 2, 5);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); // preserveDrawingBuffer for export
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.toneMapping = THREE.ReinhardToneMapping;
+                this.container.appendChild(this.renderer.domElement);
+
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.autoRotate = true;
+                this.controls.autoRotateSpeed = 0.5;
+
+                // Environment
+                this.addStars();
+                
+                // Lights
+                const ambient = new THREE.AmbientLight(0x404040);
+                this.scene.add(ambient);
+                
+                const pointLight = new THREE.PointLight(0x00f3ff, 1, 100);
+                pointLight.position.set(5, 5, 5);
+                this.scene.add(pointLight);
+
+                const pointLight2 = new THREE.PointLight(0xbc13fe, 1, 100);
+                pointLight2.position.set(-5, -5, 5);
+                this.scene.add(pointLight2);
+            }
+
+            initPostProcessing() {
+                this.composer = new EffectComposer(this.renderer);
+                const renderPass = new RenderPass(this.scene, this.camera);
+                this.composer.addPass(renderPass);
+
+                // Glow Effect
+                this.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+                this.bloomPass.threshold = 0;
+                this.bloomPass.strength = 1.5; // Neon intensity
+                this.bloomPass.radius = 0.5;
+                this.composer.addPass(this.bloomPass);
+            }
+
+            addStars() {
+                const geometry = new THREE.BufferGeometry();
+                const vertices = [];
+                for (let i = 0; i < 2000; i++) {
+                    vertices.push((Math.random() - 0.5) * 80);
+                    vertices.push((Math.random() - 0.5) * 80);
+                    vertices.push((Math.random() - 0.5) * 80);
+                }
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                const material = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, transparent: true, opacity: 0.6 });
+                this.stars = new THREE.Points(geometry, material);
+                this.scene.add(this.stars);
+            }
+
+            initGeometry() {
+                // Clear previous
+                if (this.structureGroup) this.scene.remove(this.structureGroup);
+                
+                this.structureGroup = new THREE.Group();
+                this.scene.add(this.structureGroup);
+
+                this.rawVertices = HyperMath.generateHypercubeVertices(this.dimension);
+                this.rawEdges = HyperMath.generateHypercubeEdges(this.dimension);
+
+                // Setup Visuals
+                // 1. Vertices (Nodes)
+                const nodeGeo = new THREE.SphereGeometry(0.05, 16, 16);
+                const nodeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                this.nodes = [];
+                
+                // 2. Edges (Lines)
+                const lineMat = new THREE.LineBasicMaterial({ 
+                    color: 0x00f3ff, 
+                    transparent: true, 
+                    opacity: 0.6,
+                    depthTest: false // Cool x-ray effect
+                });
+
+                // Create Nodes
+                this.rawVertices.forEach(() => {
+                    const mesh = new THREE.Mesh(nodeGeo, nodeMat);
+                    this.structureGroup.add(mesh);
+                    this.nodes.push(mesh);
+                });
+
+                // Create Lines
+                this.lines = [];
+                this.rawEdges.forEach(() => {
+                    const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+                    const line = new THREE.Line(geometry, lineMat);
+                    this.structureGroup.add(line);
+                    this.lines.push(line);
+                });
+
+                // Solid Faces (Convex Hull Approximation - Simplified for performance)
+                // For a true solid mode in 4D+, we usually just render the "cells". 
+                // Here we will use a "skin" effect by creating a mesh connecting vertices if in solid mode.
+                // For this demo, we stick to high-end wireframe + nodes as it's cleaner for >3D.
+            }
+
+            updateGeometry() {
+                // 1. Create a deep copy of vertices to rotate without destroying original data
+                let projectedNodes = [];
+
+                for (let i = 0; i < this.rawVertices.length; i++) {
+                    let p = [...this.rawVertices[i]];
+
+                    // ROTATIONS
+                    // We need to rotate in higher dimensions to see the effect.
+                    // 4D Rotation: ZW plane, XW plane
+                    // 5D/6D Rotation: various higher planes
+                    
+                    // Simple continuous rotation based on time
+                    if (this.dimension >= 4) {
+                        HyperMath.rotate(p, this.time, 0, 3); // X-W rotation
+                        HyperMath.rotate(p, this.time * 0.5, 2, 3); // Z-W rotation
+                    }
+                    if (this.dimension >= 5) {
+                        HyperMath.rotate(p, this.time * 0.3, 3, 4); // W-V rotation
+                    }
+                    if (this.dimension >= 6) {
+                        HyperMath.rotate(p, this.time * 0.2, 4, 5); // V-U rotation
+                    }
+                    
+                    // 3D Base Rotation
+                    HyperMath.rotate(p, this.time * 0.2, 0, 2); // X-Z
+
+                    // PROJECT
+                    const v3 = HyperMath.project(p, this.perspective);
+                    projectedNodes.push(v3);
+                    
+                    // Update Mesh Position
+                    this.nodes[i].position.copy(v3);
+                    
+                    // Scale nodes based on "depth" (optional visual cue)
+                    // We can approximate 4D depth by the W coordinate before projection, 
+                    // but here we just use camera distance.
+                }
+
+                // Update Lines
+                for (let i = 0; i < this.rawEdges.length; i++) {
+                    const edge = this.rawEdges[i];
+                    const p1 = projectedNodes[edge[0]];
+                    const p2 = projectedNodes[edge[1]];
+                    
+                    const positions = this.lines[i].geometry.attributes.position.array;
+                    positions[0] = p1.x; positions[1] = p1.y; positions[2] = p1.z;
+                    positions[3] = p2.x; positions[4] = p2.y; positions[5] = p2.z;
+                    this.lines[i].geometry.attributes.position.needsUpdate = true;
+                    
+                    // Color shift based on dimension/expansion
+                    // const hue = (Math.sin(this.time) + 1) * 0.5;
+                    // this.lines[i].material.color.setHSL(0.5 + hue * 0.1, 1, 0.5);
+                }
+            }
+
+            setDimension(n) {
+                if (this.dimension === n) return;
+                this.dimension = n;
+                
+                // Update UI Buttons
+                document.querySelectorAll('.dim-btn').forEach(b => b.classList.remove('active'));
+                event.target.classList.add('active');
+
+                this.initGeometry();
+            }
+
+            bindEvents() {
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    this.composer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                document.getElementById('speed-slider').addEventListener('input', (e) => {
+                    this.rotationSpeed = parseFloat(e.target.value);
+                });
+
+                document.getElementById('perspective-slider').addEventListener('input', (e) => {
+                    this.perspective = parseFloat(e.target.value);
+                });
+
+                // Mode toggles
+                document.getElementById('mode-wire').addEventListener('click', (e) => {
+                    this.mode = 'wire';
+                    this.nodes.forEach(n => n.visible = true);
+                    this.lines.forEach(l => l.visible = true);
+                    e.target.classList.add('active');
+                    document.getElementById('mode-solid').classList.remove('active');
+                });
+                
+                document.getElementById('mode-solid').addEventListener('click', (e) => {
+                    this.mode = 'solid';
+                    // In this stylized demo, solid mode hides nodes for a cleaner look
+                    this.nodes.forEach(n => n.visible = false);
+                    e.target.classList.add('active');
+                    document.getElementById('mode-wire').classList.remove('active');
+                });
+
+                // HUD Toggle
+                window.addEventListener('keydown', (e) => {
+                    if (e.key.toLowerCase() === 'h') {
+                        const ui = document.getElementById('ui-layer');
+                        ui.style.opacity = ui.style.opacity === '0' ? '1' : '0';
+                    }
+                });
+
+                // Export
+                document.getElementById('export-btn').addEventListener('click', () => {
+                    this.renderer.render(this.scene, this.camera);
+                    const link = document.createElement('a');
+                    link.download = `hyper-structure-${this.dimension}D.png`;
+                    link.href = this.renderer.domElement.toDataURL('image/png');
+                    link.click();
+                });
+            }
+
+            animate() {
+                requestAnimationFrame(this.animate.bind(this));
+
+                this.time += this.rotationSpeed;
+                
+                this.controls.update();
+                this.updateGeometry();
+                
+                // Slow rotation of background stars
+                this.stars.rotation.y += 0.0005;
+
+                // Render with Bloom
+                this.composer.render();
+            }
+        }
+
+        // Initialize App
+        const app = new HyperApp();
+        
+        // Expose to window for HTML onclick handlers
+        window.app = app; 
+    </script>
+</body>
+</html>
